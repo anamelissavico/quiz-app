@@ -2,7 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using quizzAPI.Data;
-using QuizzAPI.Services;
+using quizzAPI.Services;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
