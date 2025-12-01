@@ -1,7 +1,7 @@
 ﻿# --------------------------------------------------------------------------------
 # Estágio 1: Build (AGORA USANDO SDK 9.0 PREVIEW)
 # --------------------------------------------------------------------------------
-FROM mcr.microsoft.com/dotnet/sdk:9.0-preview AS build
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
 # Copia o arquivo .csproj (mantendo a cópia local, já que Root Directory é 'backend')
@@ -15,7 +15,7 @@ RUN dotnet publish "quizzAPI.csproj" -c Release -o /app/publish
 # --------------------------------------------------------------------------------
 # Estágio 2: Runtime (AGORA USANDO ASPNET 9.0 PREVIEW)
 # --------------------------------------------------------------------------------
-FROM mcr.microsoft.com/dotnet/aspnet:9.0-preview AS final
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
 EXPOSE 80
 
