@@ -13,8 +13,8 @@ using quizzAPI.Data;
 namespace quizzAPI.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20251127203446_InitialCreate8")]
-    partial class InitialCreate8
+    [Migration("20251201003456_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
