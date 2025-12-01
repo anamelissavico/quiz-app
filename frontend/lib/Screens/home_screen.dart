@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:quizzfront/Screens/loading_screen.dart';
+import 'package:quizzfront/Screens/quiz_screen.dart';
 import '../services/api_service.dart';
-import 'quiz_screen.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -12,15 +13,35 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _temaController = TextEditingController();
   final TextEditingController _numeroController = TextEditingController();
+  final TextEditingController _objetivoController = TextEditingController();
+  final TextEditingController _referenciaController = TextEditingController();
+  final TextEditingController _outroTemaController = TextEditingController();
 
   String _nivelEscolar = 'Ensino Fundamental';
-  String _dificuldade = 'Fácil';
-  bool _isLoading = false;
+
+  final List<String> _temasSelecionados = [];
+  final List<String> _dificuldadesSelecionadas = [];
 
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
+
+  final List<Map<String, dynamic>> _temasDisponiveis = [
+    {'id': 'História', 'nome': 'História', 'icon': Icons.menu_book, 'cor': const Color(0xFFF59E0B)},
+    {'id': 'Ciências', 'nome': 'Ciências', 'icon': Icons.science, 'cor': const Color(0xFF3B82F6)},
+    {'id': 'Matemática', 'nome': 'Matemática', 'icon': Icons.calculate, 'cor': const Color(0xFFEF4444)},
+    {'id': 'Geografia', 'nome': 'Geografia', 'icon': Icons.public, 'cor': const Color(0xFF14B8A6)},
+    {'id': 'Tecnologia', 'nome': 'Tecnologia', 'icon': Icons.computer, 'cor': const Color(0xFF6366F1)},
+    {'id': 'Lingua Inglesa', 'nome': 'Lingua Inglesa', 'icon': Icons.language, 'cor': const Color(0xFF8B5CF6)},
+    {'id': 'Lingua Español', 'nome': 'Lingua Español', 'icon': Icons.language, 'cor': const Color(0xFFEC4899)},
+    {'id': 'Outros', 'nome': 'Outros', 'icon': Icons.edit, 'cor': const Color(0xFF9CA3AF)},
+  ];
+
+  final List<Map<String, dynamic>> _dificuldadesDisponiveis = [
+    {'id': 'Fácil', 'nome': 'Fácil', 'icon': Icons.favorite, 'cor': const Color(0xFF4ADE80), 'desc': 'Perfeito para começar!'},
+    {'id': 'Médio', 'nome': 'Médio', 'icon': Icons.star, 'cor': const Color(0xFFFBBF24), 'desc': 'Um desafio equilibrado'},
+    {'id': 'Difícil', 'nome': 'Difícil', 'icon': Icons.local_fire_department, 'cor': const Color(0xFFF97316), 'desc': 'Para os experts!'},
+  ];
 
   @override
   void initState() {
@@ -29,6 +50,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       duration: const Duration(seconds: 1),
       vsync: this,
     )..repeat(reverse: true);
+
     _pulseAnimation = Tween<double>(
       begin: 0.8,
       end: 1.2,
@@ -41,16 +63,55 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   @override
   void dispose() {
     _pulseController.dispose();
-    _temaController.dispose();
     _numeroController.dispose();
+    _objetivoController.dispose();
+    _referenciaController.dispose();
+    _outroTemaController.dispose();
     super.dispose();
+  }
+
+  void _toggleTema(String id) {
+    setState(() {
+      if (_temasSelecionados.contains(id)) {
+        _temasSelecionados.remove(id);
+      } else {
+        _temasSelecionados.add(id);
+      }
+    });
+  }
+
+  void _toggleDificuldade(String id) {
+    setState(() {
+      if (_dificuldadesSelecionadas.contains(id)) {
+        _dificuldadesSelecionadas.remove(id);
+      } else {
+        _dificuldadesSelecionadas.add(id);
+      }
+    });
   }
 
   Future<void> _gerarQuizz() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final tema = _temaController.text.trim();
     final numero = int.tryParse(_numeroController.text.trim()) ?? 0;
+    final objetivo = _objetivoController.text.trim();
+    final referencia = _referenciaController.text.trim();
+
+    if (_temasSelecionados.contains('Outros') && _outroTemaController.text.trim().isNotEmpty) {
+      _temasSelecionados.remove('Outros');
+      _temasSelecionados.add(_outroTemaController.text.trim());
+    }
+
+    if (_temasSelecionados.isEmpty) {
+      _showSnack('Selecione pelo menos um tema.');
+      return;
+    }
+
+    if (_dificuldadesSelecionadas.isEmpty) {
+      _showSnack('Selecione pelo menos uma dificuldade.');
+      return;
+    }
+
     if (numero <= 0) {
       _showSnack('Número de perguntas deve ser maior que zero.');
       return;
@@ -58,45 +119,41 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
     final payload = {
       "NivelEscolar": _nivelEscolar,
-      "Tema": tema,
       "NumeroPerguntas": numero,
-      "Dificuldade": _dificuldade
+      "Objetivo": objetivo.isEmpty ? "" : objetivo,
+      "Referencia": referencia.isEmpty ? "" : referencia,
+      "Temas": _temasSelecionados,
+      "Dificuldade": _dificuldadesSelecionadas,
     };
 
-    setState(() => _isLoading = true);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => QuizLoadingScreen(
+          onComplete: () async {
+            try {
+              final response = await ApiService.gerarQuizz(payload);
+              final quizzId = response['quizzId'];
+              if (quizzId == null) throw 'ID do quiz não retornado da API';
 
-    try {
-      final response = await ApiService.gerarQuizz(payload);
-      final quizzId = response['quizzId'];
-      if (quizzId == null) throw 'ID do quiz não retornado da API';
-
-      _showSnack('✅ Quizz gerado com sucesso!');
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => QuizScreen(quizzId: quizzId),
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => QuizScreen(quizzId: quizzId),
+                ),
+              );
+            } catch (e) {
+              _showSnack('⚠️ Erro ao gerar quiz: $e');
+              Navigator.pop(context);
+            }
+          },
         ),
-      );
-    } catch (e) {
-      _showSnack('⚠️ Erro de conexão: $e');
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  void _showSnack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg)),
+      ),
     );
   }
 
-  // Funções placeholder dos botões
-  void _navegarHistorico() {
-    print('Navegando para Histórico');
-  }
-
-  void _navegarGrupos() {
-    print('Navegando para Grupos');
+  void _showSnack(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   @override
@@ -107,11 +164,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF820AD1), // roxo Nubank
-              Color(0xFF6D28D9), // purple-700
-              Color(0xFFEAB308), // yellow-500
-            ],
+            colors: [Color(0xFF820AD1), Color(0xFF6D28D9), Color(0xFFEAB308)],
           ),
         ),
         child: SafeArea(
@@ -123,8 +176,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 const SizedBox(height: 24),
                 _buildMainForm(),
                 const SizedBox(height: 24),
-                _buildNavigationButtons(), // <-- Adicionados aqui
-                const SizedBox(height: 16),
                 _buildFooter(),
               ],
             ),
@@ -138,64 +189,27 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     return Column(
       children: [
         const SizedBox(height: 16),
-        Stack(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: const [
-                Icon(
-                  Icons.sports_esports,
-                  size: 40,
-                  color: Color(0xFFFDE047), // yellow-300
-                ),
-                SizedBox(width: 8),
-                Text(
-                  'Quizzia',
-                  style: TextStyle(
-                    fontSize: 42, // aumentado
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    shadows: [
-                      Shadow(
-                        offset: Offset(2, 2),
-                        blurRadius: 4,
-                        color: Colors.black26,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            Positioned(
-              top: -4,
-              right: 60,
-              child: AnimatedBuilder(
-                animation: _pulseAnimation,
-                builder: (context, child) {
-                  return Transform.scale(
-                    scale: _pulseAnimation.value,
-                    child: const Icon(
-                      Icons.emoji_events,
-                      size: 24,
-                      color: Color(0xFFFDE047), // yellow-300
-                    ),
-                  );
-                },
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: const [
+            Icon(Icons.sports_esports, size: 40, color: Color(0xFFFDE047)),
+            SizedBox(width: 8),
+            Text(
+              'Quizzia',
+              style: TextStyle(
+                fontSize: 42,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                shadows: [Shadow(offset: Offset(2, 2), blurRadius: 4, color: Colors.black26)],
               ),
             ),
           ],
         ),
         const SizedBox(height: 8),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16),
-          child: Text(
-            'Teste seus conhecimentos e divirta-se!',
-            style: TextStyle(
-              fontSize: 18,
-              color: Color(0xFFFEF3C7), // yellow-100
-            ),
-            textAlign: TextAlign.center,
-          ),
+        const Text(
+          'Teste seus conhecimentos e divirta-se!',
+          style: TextStyle(fontSize: 18, color: Color(0xFFFEF3C7)),
+          textAlign: TextAlign.center,
         ),
       ],
     );
@@ -208,10 +222,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         elevation: 8,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(
-            color: Color(0xFFFDE047), // yellow-300
-            width: 3,
-          ),
+          side: const BorderSide(color: Color(0xFFFDE047), width: 3),
         ),
         color: Colors.white.withOpacity(0.95),
         child: Padding(
@@ -220,83 +231,64 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             key: _formKey,
             child: Column(
               children: [
-                const SizedBox(height: 12),
                 const Text(
                   'Configure Seu Quiz',
                   style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF581C87), // purple-800
+                    color: Color(0xFF581C87),
                   ),
                 ),
                 const SizedBox(height: 24),
-
-                // Nível Escolar
                 DropdownButtonFormField<String>(
                   value: _nivelEscolar,
                   decoration: const InputDecoration(labelText: 'Nível escolar'),
                   items: const [
-                    DropdownMenuItem(
-                        value: 'Ensino Fundamental',
-                        child: Text('Ensino Fundamental')),
-                    DropdownMenuItem(
-                        value: 'Ensino Médio', child: Text('Ensino Médio')),
-                    DropdownMenuItem(
-                        value: 'Ensino Superior', child: Text('Ensino Superior')),
+                    DropdownMenuItem(value: 'Ensino Fundamental', child: Text('Ensino Fundamental')),
+                    DropdownMenuItem(value: 'Ensino Médio', child: Text('Ensino Médio')),
+                    DropdownMenuItem(value: 'Ensino Superior', child: Text('Ensino Superior')),
                   ],
-                  onChanged: (v) =>
-                      setState(() => _nivelEscolar = v ?? _nivelEscolar),
+                  onChanged: (v) => setState(() => _nivelEscolar = v ?? _nivelEscolar),
                 ),
-                const SizedBox(height: 16),
-
-                // Tema
-                TextFormField(
-                  controller: _temaController,
-                  decoration: const InputDecoration(
-                    labelText: 'Tema da pergunta',
-                    hintText: 'Ex.: Tecnologia, Matemática',
+                const SizedBox(height: 24),
+                _buildTemasSection(),
+                if (_temasSelecionados.contains('Outros')) ...[
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _outroTemaController,
+                    decoration: const InputDecoration(
+                        labelText: 'Digite o tema', hintText: 'Ex.: Filosofia'),
                   ),
-                  validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? 'Informe o tema' : null,
+                ],
+                const SizedBox(height: 24),
+                TextFormField(
+                  controller: _objetivoController,
+                  decoration: const InputDecoration(
+                      labelText: 'Objetivo', hintText: 'Ex.: Quero me preparar para o ENEM'),
                 ),
                 const SizedBox(height: 16),
-
-                // Número de Perguntas
+                TextFormField(
+                  controller: _referenciaController,
+                  decoration: const InputDecoration(
+                      labelText: 'Referência (opcional)', hintText: 'Ex.: Questões do ENEM'),
+                ),
+                const SizedBox(height: 16),
                 TextFormField(
                   controller: _numeroController,
                   decoration: const InputDecoration(
-                    labelText: 'Número de perguntas',
-                    hintText: 'Ex.: 4',
-                  ),
+                      labelText: 'Número de perguntas', hintText: 'Ex.: 5'),
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   validator: (v) {
-                    if (v == null || v.trim().isEmpty) {
-                      return 'Informe a quantidade';
-                    }
+                    if (v == null || v.trim().isEmpty) return 'Informe a quantidade';
                     final n = int.tryParse(v);
                     if (n == null || n <= 0) return 'Número inválido';
                     return null;
                   },
                 ),
-                const SizedBox(height: 16),
-
-                // Dificuldade
-                DropdownButtonFormField<String>(
-                  value: _dificuldade,
-                  decoration:
-                  const InputDecoration(labelText: 'Nível de dificuldade'),
-                  items: const [
-                    DropdownMenuItem(value: 'Fácil', child: Text('Fácil')),
-                    DropdownMenuItem(value: 'Média', child: Text('Média')),
-                    DropdownMenuItem(value: 'Difícil', child: Text('Difícil')),
-                  ],
-                  onChanged: (v) =>
-                      setState(() => _dificuldade = v ?? _dificuldade),
-                ),
                 const SizedBox(height: 24),
-
-                // Botão Gerar Quiz
+                _buildDificuldadesSection(),
+                const SizedBox(height: 24),
                 _buildGenerateButton(),
               ],
             ),
@@ -306,61 +298,126 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildTemasSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Escolha um tema:',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: _temasDisponiveis.map((tema) {
+            final selecionado = _temasSelecionados.contains(tema['id']);
+            return GestureDetector(
+              onTap: () => _toggleTema(tema['id']),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: tema['cor'],
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: selecionado ? Colors.red : Colors.transparent,
+                    width: 3,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(tema['icon'], color: Colors.white),
+                    const SizedBox(width: 8),
+                    Text(tema['nome'],
+                        style: const TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDificuldadesSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Escolha a dificuldade:',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: _dificuldadesDisponiveis.map((dif) {
+            final selecionado = _dificuldadesSelecionadas.contains(dif['id']);
+            return Expanded(
+              child: GestureDetector(
+                onTap: () => _toggleDificuldade(dif['id']),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  decoration: BoxDecoration(
+                    color: dif['cor'],
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: selecionado ? Colors.red : Colors.transparent,
+                      width: 3,
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(dif['icon'], color: Colors.white, size: 28),
+                      const SizedBox(height: 8),
+                      Text(dif['nome'],
+                          style: const TextStyle(
+                              color: Colors.white, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 4),
+                      Text(dif['desc'],
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                              color: Colors.white70, fontSize: 12)),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
   Widget _buildGenerateButton() {
     return Container(
       width: double.infinity,
       height: 56,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFFFBBF24), // yellow-400
-            Color(0xFFEAB308), // yellow-500
-          ],
-        ),
+        gradient: const LinearGradient(colors: [Color(0xFFFBBF24), Color(0xFFEAB308)]),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: const Color(0xFFFDE047), // yellow-300
-          width: 3,
-        ),
+        border: Border.all(color: const Color(0xFFFDE047), width: 3),
         boxShadow: const [
-          BoxShadow(
-            color: Colors.black26,
-            offset: Offset(0, 4),
-            blurRadius: 8,
-          ),
+          BoxShadow(color: Colors.black26, offset: Offset(0, 4), blurRadius: 8)
         ],
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: _isLoading ? null : _gerarQuizz,
+          onTap: _gerarQuizz,
           borderRadius: BorderRadius.circular(16),
-          child: Center(
-            child: _isLoading
-                ? const SizedBox(
-              height: 20,
-              width: 20,
-              child: CircularProgressIndicator(
-                color: Colors.white,
-                strokeWidth: 2,
-              ),
-            )
-                : Row(
+          child: const Center(
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: const [
-                Icon(
-                  Icons.flash_on,
-                  size: 20,
-                  color: Color(0xFF581C87), // purple-800
-                ),
+              children: [
+                Icon(Icons.flash_on, size: 20, color: Color(0xFF581C87)),
                 SizedBox(width: 8),
                 Text(
                   'Gerar Quiz Agora!',
                   style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF581C87), // purple-800
-                  ),
+                      fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF581C87)),
                 ),
               ],
             ),
@@ -370,130 +427,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
-  // ==== Botões de Navegação ====
-  Widget _buildNavigationButtons() {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildNavButton(
-            title: 'Histórico',
-            subtitle: 'Veja seus resultados',
-            icon: Icons.history,
-            gradient: [Color(0xFF8B5CF6), Color(0xFF6D28D9)], // purple gradiente
-            iconBgColor: Color(0xFFFDE047), // yellow-300
-            iconColor: Color(0xFF6D28D9), // purple-700
-            borderColor: Color(0xFFFDE047), // yellow-300
-            onTap: _navegarHistorico,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _buildNavButton(
-            title: 'Grupos',
-            subtitle: 'Jogue com amigos',
-            icon: Icons.group,
-            gradient: [Color(0xFFFBBF24), Color(0xFFD97706)], // amarelo gradiente
-            iconBgColor: Color(0xFF820AD1), // roxo Nubank
-            iconColor: Color(0xFFFDE047), // yellow-300
-            borderColor: Color(0xFFDDD6FE), // purple-300
-            onTap: _navegarGrupos,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildNavButton({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required List<Color> gradient,
-    required Color iconBgColor,
-    required Color iconColor,
-    required Color borderColor,
-    required VoidCallback onTap,
-  }) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: borderColor, width: 3),
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: gradient,
-          ),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(16),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  Container(
-                    width: 64,
-                    height: 64,
-                    decoration: BoxDecoration(
-                      color: iconBgColor,
-                      shape: BoxShape.circle,
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Colors.black26,
-                          offset: Offset(0, 2),
-                          blurRadius: 4,
-                        ),
-                      ],
-                    ),
-                    child: Icon(
-                      icon,
-                      size: 32,
-                      color: iconColor,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.white.withOpacity(0.9),
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildFooter() {
     return const Padding(
-      padding: EdgeInsets.all(16),
+      padding: EdgeInsets.all(8.0),
       child: Text(
-        '🎮 Divirta-se aprendendo com Quizzia! 🏆',
-        style: TextStyle(
-          fontSize: 14,
-          color: Color(0xFFFEF3C7), // yellow-100
-        ),
-        textAlign: TextAlign.center,
+        '© 2025 Quizzia',
+        style: TextStyle(color: Colors.white70, fontSize: 12),
       ),
     );
   }

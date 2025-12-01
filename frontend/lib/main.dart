@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import 'screens/register_screen.dart';
-import 'screens/login_screen.dart';
-import 'screens/home_screen.dart'; // Importando a HomeScreen
+import 'Screens/login_screen.dart';   // ⬅️ sua tela de login
+import 'Screens/home_wrapper.dart';  // ⬅️ sua tela protegida após login
+
+// 🔥 Adiciona um RouteObserver global
+final RouteObserver<PageRoute> routeObserver = RouteObserver<PageRoute>();
 
 void main() {
   runApp(const MyApp());
@@ -14,15 +16,18 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Cadastro App',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
-      home: HomePage(), // Alterado para abrir direto na HomeScreen
+      title: 'Quizzia',
+
+      // 🔥 Agora a primeira tela é o LOGIN
+      home: const LoginScreen(),
+
+      // 🔥 Adiciona o observer aqui
+      navigatorObservers: [routeObserver],
+
+      // (Opcional) Rotas da aplicação
       routes: {
-        '/register': (context) => RegisterScreen(),
-        '/login': (context) => LoginScreen(), // Opcional, caso queira navegar depois
+        '/login': (context) => const LoginScreen(),
+        '/home': (context) => const HomeWrapper(),
       },
     );
   }

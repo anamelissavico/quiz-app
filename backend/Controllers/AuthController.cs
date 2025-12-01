@@ -6,6 +6,7 @@
     using quizzAPI.Data;
     using quizzAPI.Models;
     using quizzAPI.Models.DTOs;
+    using System.Text;
 
     [ApiController]
     [Route("api/[controller]")]
@@ -42,22 +43,29 @@
 
         private string GenerateJwtToken(User user)
         {
-            // Aqui você coloca seu método de geração de token JWT
-            // Exemplo simples:
+            var jwtSection = HttpContext.RequestServices.GetRequiredService<IConfiguration>().GetSection("Jwt");
+            var key = Encoding.UTF8.GetBytes(jwtSection["Key"]);
+            var issuer = jwtSection["Issuer"];
+            var audience = jwtSection["Audience"];
+            var durationMinutes = int.Parse(jwtSection["DurationMinutes"]);
+
             var tokenHandler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
-            var key = System.Text.Encoding.ASCII.GetBytes("P@ssw0rdNaoEhSeguro_UseAlgoAssim_9fB1&8zQ#L2xK7"); // use a mesma do Program.cs
+
             var tokenDescriptor = new Microsoft.IdentityModel.Tokens.SecurityTokenDescriptor
             {
                 Subject = new System.Security.Claims.ClaimsIdentity(new[]
                 {
-                new System.Security.Claims.Claim("id", user.Id.ToString()),
-                new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Name, user.Nome)
-            }),
-                Expires = DateTime.UtcNow.AddHours(1),
+            new System.Security.Claims.Claim("id", user.Id.ToString()),
+            new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Name, user.Nome)
+        }),
+                Expires = DateTime.UtcNow.AddMinutes(durationMinutes),
+                Issuer = issuer,
+                Audience = audience,
                 SigningCredentials = new Microsoft.IdentityModel.Tokens.SigningCredentials(
                     new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(key),
                     Microsoft.IdentityModel.Tokens.SecurityAlgorithms.HmacSha256Signature)
             };
+
             var token = tokenHandler.CreateToken(tokenDescriptor);
             return tokenHandler.WriteToken(token);
         }

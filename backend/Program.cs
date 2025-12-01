@@ -18,9 +18,10 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 //builder.Services.AddSwaggerGen();
 
-// Banco de dados (SQL Server)
+// Banco de dados (PostgreSQL)
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // JWT Authentication
 var jwtSection = builder.Configuration.GetSection("Jwt");
@@ -47,11 +48,10 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
+// Authorization
 builder.Services.AddAuthorization();
 
-// ----------------------
 // OpenAI Service
-// ----------------------
 builder.Services.AddScoped<OpenAIService>();
 
 // ----------------------
@@ -59,19 +59,23 @@ builder.Services.AddScoped<OpenAIService>();
 // ----------------------
 var app = builder.Build();
 
-// Middleware
-//if (app.Environment.IsDevelopment())
-//{
-  //  app.UseDeveloperExceptionPage();
-  //  app.UseSwagger();
-  //  app.UseSwaggerUI();
-//}
+// Middleware (desenvolvimento)
+if (app.Environment.IsDevelopment())
+{
+    app.UseDeveloperExceptionPage();
+    //app.UseSwagger();
+    //app.UseSwaggerUI();
+}
 
-app.UseHttpsRedirection();
+// Redirecionamento HTTPS (opcional)
+//app.UseHttpsRedirection();
 
+// Autenticação e autorização
 app.UseAuthentication();
 app.UseAuthorization();
 
+// Mapear controllers
 app.MapControllers();
 
+// Iniciar aplicação
 app.Run();

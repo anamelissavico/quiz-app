@@ -7,52 +7,75 @@ namespace quizzAPI.Data
     {
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) { }
 
-        // Tabela de usuários existente
         public DbSet<User> Users { get; set; }
-
-        // Tabela para perguntas do quiz
+        public DbSet<Quizz> Quizzes { get; set; }
         public DbSet<Pergunta> Perguntas { get; set; }
+        public DbSet<Grupo> Grupos { get; set; }
+        public DbSet<UsuarioGrupo> UsuariosGrupos { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            // Configuração da tabela User
+            // User
             modelBuilder.Entity<User>()
                 .HasIndex(u => u.Email)
                 .IsUnique();
 
-            // Configuração da tabela Pergunta
+            // Quizz
+            modelBuilder.Entity<Quizz>(entity =>
+            {
+                entity.ToTable("Quizz");
+
+                entity.Property(e => e.Temas)
+                      .HasColumnType("text[]")
+                      .IsRequired();
+
+                entity.Property(e => e.NivelEscolar)
+                      .HasMaxLength(100)
+                      .IsRequired(false);
+
+                entity.Property(e => e.Dificuldade)
+                      .HasColumnType("text[]")
+                      .IsRequired(false);
+
+                entity.HasMany(q => q.Perguntas)
+                      .WithOne(p => p.Quizz)
+                      .HasForeignKey(p => p.QuizzId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // Pergunta
             modelBuilder.Entity<Pergunta>(entity =>
             {
-                // Mapeia para a tabela correta
                 entity.ToTable("Perguntas");
 
-                // Textos longos como NVARCHAR(MAX)
                 entity.Property(e => e.PerguntaTexto)
-                      .HasColumnType("NVARCHAR(MAX)")
+                      .HasColumnType("text")
                       .IsRequired();
 
                 entity.Property(e => e.AlternativaA)
-                      .HasColumnType("NVARCHAR(MAX)")
+                      .HasColumnType("text")
                       .IsRequired();
 
                 entity.Property(e => e.AlternativaB)
-                      .HasColumnType("NVARCHAR(MAX)")
+                      .HasColumnType("text")
                       .IsRequired();
 
                 entity.Property(e => e.AlternativaC)
-                      .HasColumnType("NVARCHAR(MAX)")
+                      .HasColumnType("text")
                       .IsRequired();
 
                 entity.Property(e => e.AlternativaD)
-                      .HasColumnType("NVARCHAR(MAX)")
+                      .HasColumnType("text")
                       .IsRequired();
 
-                // Resposta correta
                 entity.Property(e => e.RespostaCorreta)
                       .HasMaxLength(1)
                       .IsRequired();
 
-                // Campos extras opcionais
+                entity.Property(e => e.Justificativa)
+                      .HasColumnType("text")
+                      .IsRequired(false);
+
                 entity.Property(e => e.NivelEscolar)
                       .HasMaxLength(50)
                       .IsRequired(false);
@@ -65,6 +88,20 @@ namespace quizzAPI.Data
                       .HasMaxLength(50)
                       .IsRequired(false);
             });
+
+            // UsuarioGrupo
+            modelBuilder.Entity<UsuarioGrupo>()
+                .HasKey(ug => new { ug.UsuarioId, ug.GrupoId });
+
+            modelBuilder.Entity<UsuarioGrupo>()
+                .HasOne(ug => ug.User)
+                .WithMany(u => u.Grupos)
+                .HasForeignKey(ug => ug.UsuarioId);
+
+            modelBuilder.Entity<UsuarioGrupo>()
+                .HasOne(ug => ug.Grupo)
+                .WithMany(g => g.Membros)
+                .HasForeignKey(ug => ug.GrupoId);
 
             base.OnModelCreating(modelBuilder);
         }
