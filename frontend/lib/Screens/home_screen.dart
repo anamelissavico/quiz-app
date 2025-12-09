@@ -5,8 +5,9 @@ import 'package:quizzfront/Screens/quiz_screen.dart';
 import '../services/api_service.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  final int? grupoId;
 
+  const HomePage({super.key, this.grupoId});
   @override
   State<HomePage> createState() => _HomePageState();
 }
@@ -90,6 +91,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     });
   }
 
+
   Future<void> _gerarQuizz() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -97,7 +99,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final objetivo = _objetivoController.text.trim();
     final referencia = _referenciaController.text.trim();
 
-    if (_temasSelecionados.contains('Outros') && _outroTemaController.text.trim().isNotEmpty) {
+    if (_temasSelecionados.contains('Outros') &&
+        _outroTemaController.text.trim().isNotEmpty) {
       _temasSelecionados.remove('Outros');
       _temasSelecionados.add(_outroTemaController.text.trim());
     }
@@ -124,6 +127,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       "Referencia": referencia.isEmpty ? "" : referencia,
       "Temas": _temasSelecionados,
       "Dificuldade": _dificuldadesSelecionadas,
+      "GrupoId": widget.grupoId, // <-- AQUI
     };
 
     Navigator.push(
@@ -132,9 +136,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         builder: (_) => QuizLoadingScreen(
           onComplete: () async {
             try {
-              final response = await ApiService.gerarQuizz(payload);
+              final response = widget.grupoId != null
+                  ? await ApiService.gerarQuizzParaGrupo(
+                  widget.grupoId!,
+                  payload
+              )
+                  : await ApiService.gerarQuizz(payload);
+
               final quizzId = response['quizzId'];
-              if (quizzId == null) throw 'ID do quiz não retornado da API';
 
               Navigator.pushReplacement(
                 context,
@@ -184,6 +193,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       ),
     );
   }
+
+  // ----- RESTANTE DO SEU CÓDIGO (IDÊNTICO, SEM ALTERAÇÕES) -----
 
   Widget _buildHeader() {
     return Column(

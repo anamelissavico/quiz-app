@@ -1,8 +1,8 @@
-class RegisterRequest {
+class LoginRequest {
   final String email;
   final String senha;
 
-  RegisterRequest({
+  LoginRequest({
     required this.email,
     required this.senha,
   });

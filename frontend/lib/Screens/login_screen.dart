@@ -82,7 +82,12 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
       // ▶️ Ir para a Home
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const HomeWrapper()),
+        MaterialPageRoute(
+          builder: (_) => HomeWrapper(
+            nomeUsuario: data["nome"],
+            usuarioId: data["usuarioId"],
+          ),
+        ),
       );
     } catch (e) {
       String mensagem = "Erro ao fazer login";

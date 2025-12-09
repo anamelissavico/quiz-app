@@ -8,12 +8,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../main.dart';
 import '../services/api_service.dart';
+import 'grupo_detalhes_screen.dart';
 
 
 class GroupsScreen extends StatefulWidget {
   final Function(int)? onOpenGroup;
 
-  const GroupsScreen({Key? key, this.onOpenGroup}) : super(key: key);
+  const GroupsScreen({Key? key, this.onOpenGroup, required int usuarioId, required String nomeUsuario, required Null Function(dynamic i) onTabChange}) : super(key: key);
 
   @override
   State<GroupsScreen> createState() => _GroupsScreenState();
@@ -355,7 +356,6 @@ class _GroupsScreenState extends State<GroupsScreen>
       duration: Duration(milliseconds: 400 + (index * 100)),
       curve: Curves.easeOut,
       builder: (context, value, child) {
-        // --- Ajuste: interpreta várias possíveis chaves vindas da API ---
         final membrosVal = grupo['numeroMembros'] ??
             grupo['NumeroMembros'] ??
             grupo['membros'] ??
@@ -371,7 +371,6 @@ class _GroupsScreenState extends State<GroupsScreen>
 
         final membrosText = membrosVal?.toString() ?? '0';
         final quizzesText = quizzesVal?.toString() ?? '0';
-        // ------------------------------------------------------------
 
         return Transform.translate(
           offset: Offset(-20 * (1 - value), 0),
@@ -379,25 +378,45 @@ class _GroupsScreenState extends State<GroupsScreen>
             opacity: value,
             child: Container(
               margin: EdgeInsets.only(bottom: 12),
+
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Colors.white.withOpacity(0.05),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Color(0xFFFDE68A), width: 2),
+                border: Border.all(color: Colors.white.withOpacity(0.25), width: 2),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 12,
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 8,
                     offset: Offset(0, 4),
                   ),
                 ],
               ),
+
               child: Material(
                 color: Colors.transparent,
                 child: InkWell(
-                  onTap: () {
-                    if (widget.onOpenGroup != null) {
-                      widget.onOpenGroup!(grupo['id']);
+                  onTap: () async {
+                    final id = grupo['id'] ?? grupo['Id'] ?? grupo['grupoId'] ?? grupo['GrupoId'];
+
+                    final grupoDetalhado = await ApiService.buscarGrupoPorId(id);
+
+                    if (grupoDetalhado == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Erro ao carregar detalhes do grupo.")),
+                      );
+                      return;
                     }
+
+
+                     Navigator.push(
+                       context,
+                       MaterialPageRoute(
+                         builder: (_) => GrupoDetalhesScreen(
+                           grupo: grupoDetalhado,
+                          grupoId: id,
+                         ),
+                      ),
+                     );
                   },
                   borderRadius: BorderRadius.circular(16),
                   child: Padding(
@@ -433,7 +452,8 @@ class _GroupsScreenState extends State<GroupsScreen>
                                     child: Text(
                                       grupo['nome'],
                                       style: TextStyle(
-                                        color: Color(0xFF6B21A8),
+
+                                        color: Colors.white,
                                         fontWeight: FontWeight.bold,
                                         fontSize: 16,
                                       ),
@@ -444,7 +464,7 @@ class _GroupsScreenState extends State<GroupsScreen>
                                     Icon(
                                       Icons.lock_rounded,
                                       size: 14,
-                                      color: Color(0xFF6B7280),
+                                      color: Colors.white70,
                                     ),
                                   ],
                                 ],
@@ -455,13 +475,13 @@ class _GroupsScreenState extends State<GroupsScreen>
                                   Icon(
                                     Icons.people_rounded,
                                     size: 14,
-                                    color: Color(0xFF9333EA),
+                                    color: Color(0xFFFDE68A),
                                   ),
                                   SizedBox(width: 4),
                                   Text(
                                     membrosText,
                                     style: TextStyle(
-                                      color: Color(0xFF9333EA),
+                                      color: Colors.white,
                                       fontSize: 14,
                                     ),
                                   ),
@@ -469,13 +489,13 @@ class _GroupsScreenState extends State<GroupsScreen>
                                   Icon(
                                     Icons.emoji_events_rounded,
                                     size: 14,
-                                    color: Color(0xFF9333EA),
+                                    color: Color(0xFFFDE68A),
                                   ),
                                   SizedBox(width: 4),
                                   Text(
                                     '$quizzesText quizzes',
                                     style: TextStyle(
-                                      color: Color(0xFF9333EA),
+                                      color: Colors.white,
                                       fontSize: 14,
                                     ),
                                   ),
@@ -484,24 +504,34 @@ class _GroupsScreenState extends State<GroupsScreen>
                             ],
                           ),
                         ),
+
                         if (grupo['ranking'] != null)
                           Column(
                             children: [
                               Icon(
                                 Icons.workspace_premium_rounded,
-                                color: Color(0xFFD97706),
+                                color: Color(0xFFFDE68A),
                                 size: 20,
                               ),
                               Text(
                                 '#${grupo['ranking']}',
                                 style: TextStyle(
-                                  color: Color(0xFF6B21A8),
+                                  color: Colors.white,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 12,
                                 ),
                               ),
                             ],
                           ),
+
+                        const Padding(
+                          padding: EdgeInsets.only(left: 8.0),
+                          child: Icon(
+                            Icons.arrow_forward_ios_rounded,
+                            size: 16,
+                            color: Colors.white70,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -565,9 +595,6 @@ class _GroupsScreenState extends State<GroupsScreen>
   }
 }
 
-// =========================================
-// DIALOG PARA CRIAR GRUPO
-// =========================================
 
 class CreateGroupDialog extends StatefulWidget {
   final VoidCallback onClose;
@@ -661,9 +688,9 @@ class _CreateGroupDialogState extends State<CreateGroupDialog>
       'Nome': _nomeController.text.trim(),
       'Descricao': _descricaoController.text.trim(),
       'CriadorId': userId,
-      'Icon': _icone, // <-- agora usa o ícone escolhido pelo usuário
+      'Icon': _icone,
       'Color': colorHex,
-      'Privado': _isPrivado, // <-- agora também envia a privacidade do grupo
+      'Privado': _isPrivado,
     };
 
     print('Payload JSON enviado para API: ${jsonEncode(payload)}');
@@ -673,7 +700,7 @@ class _CreateGroupDialogState extends State<CreateGroupDialog>
 
       if (response != null) {
         setState(() {
-          _generatedId = response['id']?.toString() ?? '';
+          _generatedId = response['codigoAcesso']?.toString() ?? '';
           _showSuccess = true;
         });
       }
@@ -761,7 +788,6 @@ class _CreateGroupDialogState extends State<CreateGroupDialog>
 
                   SizedBox(height: 20),
 
-                  // PRÉ-VISUALIZAÇÃO
                   Container(
                     padding: EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -901,7 +927,6 @@ class _CreateGroupDialogState extends State<CreateGroupDialog>
 
                   SizedBox(height: 16),
 
-                  // ÍCONES
                   Text(
                     'Escolha um Ícone',
                     style: TextStyle(
@@ -964,7 +989,6 @@ class _CreateGroupDialogState extends State<CreateGroupDialog>
 
                   SizedBox(height: 16),
 
-                  // CORES
                   Text(
                     'Escolha uma Cor',
                     style: TextStyle(
@@ -1012,71 +1036,7 @@ class _CreateGroupDialogState extends State<CreateGroupDialog>
 
                   SizedBox(height: 16),
 
-                  // PRIVACIDADE
-                  Container(
-                    padding: EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                          color: Color(0xFFC4B5FD), width: 2),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: _isPrivado
-                                ? Color(0xFFF3E8FF)
-                                : Color(0xFFD1FAE5),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Icon(
-                            _isPrivado
-                                ? Icons.lock_rounded
-                                : Icons.public_rounded,
-                            color: _isPrivado
-                                ? Color(0xFF7E22CE)
-                                : Color(0xFF059669),
-                          ),
-                        ),
-                        SizedBox(width: 12),
 
-                        GestureDetector(
-                          onTap: () =>
-                              setState(() => _isPrivado = !_isPrivado),
-                          child: Container(
-                            width: 56,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              color: _isPrivado
-                                  ? Color(0xFF7E22CE)
-                                  : Color(0xFF9CA3AF),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: AnimatedAlign(
-                              duration: Duration(milliseconds: 200),
-                              alignment: _isPrivado
-                                  ? Alignment.centerRight
-                                  : Alignment.centerLeft,
-                              child: Container(
-                                width: 24,
-                                height: 24,
-                                margin: EdgeInsets.all(4),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  SizedBox(height: 24),
 
                   // BOTÕES
                   Row(
@@ -1450,7 +1410,6 @@ class _JoinGroupDialogState extends State<JoinGroupDialog>
                 ],
               ),
               SizedBox(height: 24),
-              // Ilustração
               Text('🎯', style: TextStyle(fontSize: 64)),
               SizedBox(height: 12),
               Text(
@@ -1478,17 +1437,12 @@ class _JoinGroupDialogState extends State<JoinGroupDialog>
                     controller: _groupIdController,
                     textAlign: TextAlign.center,
                     maxLength: 12,
-                    textCapitalization: TextCapitalization.characters,
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 2,
                     ),
                     onChanged: (value) {
-                      _groupIdController.value = TextEditingValue(
-                        text: value.toUpperCase(),
-                        selection: _groupIdController.selection,
-                      );
                       setState(() {});
                     },
                     decoration: InputDecoration(

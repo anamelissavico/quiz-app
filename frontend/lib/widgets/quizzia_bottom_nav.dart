@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 class QuizziaBottomNav extends StatefulWidget {
   final int currentIndex;
   final Function(int) onTabChange;
+  final int? grupoId;
 
   const QuizziaBottomNav({
     Key? key,
     required this.currentIndex,
     required this.onTabChange,
+    this.grupoId,
   }) : super(key: key);
 
   @override
@@ -37,23 +39,30 @@ class _QuizziaBottomNavState extends State<QuizziaBottomNav> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              /// 🔥 INÍCIO = index 0
               _buildNavItem(
                 index: 0,
                 icon: Icons.home_rounded,
                 label: 'Início',
                 isActive: widget.currentIndex == 0,
               ),
-
-              /// 🔥 CRIAR = index 1
-              _buildAddButton(),
-
-              /// 🔥 PERFIL = index 2
               _buildNavItem(
-                index: 2,
+                index: 1,
+                icon: Icons.groups_rounded,
+                label: 'Grupos',
+                isActive: widget.currentIndex == 1,
+              ),
+              _buildAddButton(),
+              _buildNavItem(
+                index: 3,
+                icon: Icons.history_rounded,
+                label: 'Histórico',
+                isActive: widget.currentIndex == 3,
+              ),
+              _buildNavItem(
+                index: 4,
                 icon: Icons.person_rounded,
                 label: 'Perfil',
-                isActive: widget.currentIndex == 2,
+                isActive: widget.currentIndex == 4,
               ),
             ],
           ),
@@ -110,12 +119,11 @@ class _QuizziaBottomNavState extends State<QuizziaBottomNav> {
     );
   }
 
-  /// 🔥 CRIAR = index 1
   Widget _buildAddButton() {
     return Container(
       width: 60,
       child: GestureDetector(
-        onTap: () => widget.onTabChange(1),
+        onTap: () => widget.onTabChange(2),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

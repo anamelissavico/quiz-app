@@ -224,7 +224,13 @@ class _AvaliacaoQuizzScreenState extends State<AvaliacaoQuizzScreen>
                             Navigator.pushReplacement(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => const HomeWrapper(startIndex: 0),
+                                builder: (_) => HomeWrapper( startIndex: 0,
+                                  nomeUsuario: ModalRoute.of(context)!.settings.arguments != null
+                                      ? (ModalRoute.of(context)!.settings.arguments as Map)['nomeUsuario']
+                                      : "",
+                                  usuarioId: ModalRoute.of(context)!.settings.arguments != null
+                                      ? (ModalRoute.of(context)!.settings.arguments as Map)['usuarioId']
+                                      : 0,),
                               ),
                             );
                           },
@@ -257,7 +263,13 @@ class _AvaliacaoQuizzScreenState extends State<AvaliacaoQuizzScreen>
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (_) => HomeWrapper(startIndex: i),
+              builder: (_) => HomeWrapper( startIndex: 0,
+                nomeUsuario: ModalRoute.of(context)!.settings.arguments != null
+                    ? (ModalRoute.of(context)!.settings.arguments as Map)['nomeUsuario']
+                    : "",
+                usuarioId: ModalRoute.of(context)!.settings.arguments != null
+                    ? (ModalRoute.of(context)!.settings.arguments as Map)['usuarioId']
+                    : 0,),
             ),
           );
         },

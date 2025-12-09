@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 import 'avaliacaoQuizzScreen.dart'; // Certifique-se de importar a tela de avaliação
 
@@ -146,13 +147,23 @@ class _QuizScreenState extends State<QuizScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _enviarRespostas() async {
-    final avaliacao = AvaliacaoQuizzRequest(
-      userId: 1,
-      quizzId: widget.quizzId,
-      respostas: respostasUsuario,
-    );
-
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final usuarioId = prefs.getInt('usuarioId') ?? 0;
+
+      if (usuarioId == 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Erro: usuário não está logado.')),
+        );
+        return;
+      }
+
+      final avaliacao = AvaliacaoQuizzRequest(
+        userId: usuarioId,
+        quizzId: widget.quizzId,
+        respostas: respostasUsuario,
+      );
+
       final resultado = await ApiService.avaliarQuizz(avaliacao.toJson());
 
       Navigator.pushReplacement(

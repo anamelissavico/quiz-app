@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../models/register_request.dart';
+import 'package:quizzfront/Models/register_request.dart';
+import 'package:quizzfront/services/api_service.dart';
+
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -53,38 +55,22 @@ class _RegisterScreenState extends State<RegisterScreen> with TickerProviderStat
     setState(() => _isLoading = true);
 
     final request = RegisterRequest(
-      nome: _nomeController.text,
-      email: _emailController.text,
-      senha: _senhaController.text,
+      nome: _nomeController.text.trim(),
+      email: _emailController.text.trim(),
+      senha: _senhaController.text.trim(),
     );
 
     try {
-      final url = Uri.parse('http://192.168.3.6:5267/api/auth/register');
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(request.toJson()),
-      );
+      final result = await ApiService.registrar(request);
 
-      if (response.statusCode == 200) {
+      if (result["sucesso"] == true) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Cadastro realizado com sucesso!')),
         );
         Navigator.pop(context);
       } else {
-        String errorMessage;
-        if (response.body.isNotEmpty) {
-          try {
-            final decoded = jsonDecode(response.body);
-            errorMessage = decoded['message'] ?? response.body;
-          } catch (e) {
-            errorMessage = response.body;
-          }
-        } else {
-          errorMessage = 'Erro desconhecido';
-        }
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao cadastrar: $errorMessage')),
+          SnackBar(content: Text('Erro ao cadastrar: ${result["mensagem"] ?? "Erro desconhecido"}')),
         );
       }
     } catch (e) {
@@ -95,6 +81,7 @@ class _RegisterScreenState extends State<RegisterScreen> with TickerProviderStat
       setState(() => _isLoading = false);
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -122,7 +109,7 @@ class _RegisterScreenState extends State<RegisterScreen> with TickerProviderStat
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Seta de voltar
+
                     Align(
                       alignment: Alignment.topLeft,
                       child: IconButton(
@@ -160,11 +147,11 @@ class _RegisterScreenState extends State<RegisterScreen> with TickerProviderStat
                       ],
                     ),
 
-                    const Spacer(flex: 1), // Pequeno espaço acima do card
+                    const Spacer(flex: 1),
 
                     // Card de registro
                     Flexible(
-                      flex: 5, // Maior peso para centralizar verticalmente
+                      flex: 5,
                       child: Container(
                         width: double.infinity,
                         constraints: const BoxConstraints(maxWidth: 384),
@@ -257,7 +244,7 @@ class _RegisterScreenState extends State<RegisterScreen> with TickerProviderStat
                       ),
                     ),
 
-                    const Spacer(flex: 2), // Espaço abaixo do card
+                    const Spacer(flex: 2),
                   ],
                 ),
               ),

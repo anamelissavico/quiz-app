@@ -1,17 +1,21 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import '../services/api_service.dart';
 
-/// Home Screen do Quizzia
-/// Mantém fidelidade visual com a versão React/Web
 class QuizziaHomeScreen extends StatefulWidget {
   final String nomeUsuario;
-  final int pontosTotais; // ⬅️ NOVO: Para exibir os pontos do usuário
-  final VoidCallback onGenerateNewQuiz; // ⬅️ NOVO: Ação para ir para a HomePage
+  final int pontosTotais;
+  final VoidCallback onGenerateNewQuiz;
+  final VoidCallback onNavigateToHistorico;
+  final VoidCallback onNavigateToGrupos;
 
   const QuizziaHomeScreen({
     Key? key,
     this.nomeUsuario = 'Jogador',
-    this.pontosTotais = 0, // Valor padrão 0
-    required this.onGenerateNewQuiz, // Requer a função de navegação
+    this.pontosTotais = 0,
+    required this.onGenerateNewQuiz,
+    required this.onNavigateToHistorico,
+    required this.onNavigateToGrupos,
   }) : super(key: key);
 
   @override
@@ -20,15 +24,18 @@ class QuizziaHomeScreen extends StatefulWidget {
 
 class _QuizziaHomeScreenState extends State<QuizziaHomeScreen>
     with TickerProviderStateMixin {
-  late AnimationController _headerController;
+  int _pontosTotais = 0;
+  String _nomeUsuario = 'Carregando...';
+  bool _isLoading = true;
+  String? _error;
 
+  late AnimationController _headerController;
   late Animation<double> _headerAnimation;
 
   @override
   void initState() {
     super.initState();
 
-    // Animação de entrada APENAS para o cabeçalho
     _headerController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
@@ -39,8 +46,30 @@ class _QuizziaHomeScreenState extends State<QuizziaHomeScreen>
       curve: Curves.easeOut,
     );
 
-    // Iniciar animação
-    _headerController.forward();
+    _fetchUserData();
+  }
+
+  Future<void> _fetchUserData() async {
+    if (!mounted) return;
+    try {
+      final data = await ApiService.obterDadosUsuario();
+      if (mounted) {
+        setState(() {
+          _pontosTotais = data['pontosTotais'] ?? widget.pontosTotais;
+          _nomeUsuario = data['nome'] ?? widget.nomeUsuario;
+          _isLoading = false;
+        });
+        _headerController.forward();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = 'Falha ao carregar dados: ${e.toString()}';
+          _isLoading = false;
+        });
+        _headerController.forward();
+      }
+    }
   }
 
   @override
@@ -52,18 +81,9 @@ class _QuizziaHomeScreenState extends State<QuizziaHomeScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // 🎯 CORREÇÃO 1: Garante que o fundo do Scaffold (incluindo a barra de status)
-      // tenha a cor inicial do gradiente, eliminando o vazamento branco.
       backgroundColor: const Color(0xFF9333EA),
-
-      // 🎯 CORREÇÃO 2: Permite que o 'body' se estenda por trás da barra de status,
-      // garantindo que o gradiente cubra toda a altura da tela.
       extendBodyBehindAppBar: true,
-
-      // 🌟 NOVA CORREÇÃO: Permite que o 'body' (o Container com o gradiente)
-      // se estenda por trás da BottomNavigationBar, ocupando a tela inteira.
       extendBody: true,
-
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -76,39 +96,41 @@ class _QuizziaHomeScreenState extends State<QuizziaHomeScreen>
             ],
           ),
         ),
-        child: SingleChildScrollView(
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator(color: Colors.white))
+            : SingleChildScrollView(
           child: ConstrainedBox(
             constraints: BoxConstraints(
               minHeight: MediaQuery.of(context).size.height,
             ),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              padding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: 80), // 👈 AQUI!!! Espaço no topo
+                  const SizedBox(height: 80),
                   _buildHeader(),
                   const SizedBox(height: 32),
                   _buildGenerateQuizButton(),
+                  const SizedBox(height: 24),
+                  _buildActionShortcuts(),
                   const SizedBox(height: 32),
                   _buildFooter(),
                   const SizedBox(height: 8),
                 ],
               ),
             ),
-
           ),
         ),
       ),
     );
   }
 
-  // --- WIDGETS DE CONSTRUÇÃO ---
-
-  // Header com saudação, nome e Pontos Totais
   Widget _buildHeader() {
     String saudacao = _obterSaudacao();
-    String pontos = widget.pontosTotais.toString();
+    String pontos = _pontosTotais.toString();
+    String nomeExibido = _nomeUsuario;
 
     return FadeTransition(
       opacity: _headerAnimation,
@@ -130,14 +152,14 @@ class _QuizziaHomeScreenState extends State<QuizziaHomeScreen>
                       Text(
                         '$saudacao 👋',
                         style: const TextStyle(
-                          color: Color(0xFFFEF9C3), // yellow-100
+                          color: Color(0xFFFEF9C3),
                           fontSize: 16,
                           height: 1.5,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        widget.nomeUsuario,
+                        nomeExibido,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 28,
@@ -148,13 +170,14 @@ class _QuizziaHomeScreenState extends State<QuizziaHomeScreen>
                     ],
                   ),
                 ),
-                // 🏆 NOVO WIDGET: CARD DE PONTOS TOTAIS
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.9),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFFDE047), width: 2),
+                    border:
+                    Border.all(color: const Color(0xFFFDE047), width: 2),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.3),
@@ -167,12 +190,13 @@ class _QuizziaHomeScreenState extends State<QuizziaHomeScreen>
                     children: [
                       Row(
                         children: [
-                          const Icon(Icons.star_rate_rounded, color: Color(0xFFCA8A04), size: 24),
+                          const Icon(Icons.star_rate_rounded,
+                              color: Color(0xFFCA8A04), size: 24),
                           const SizedBox(width: 8),
                           Text(
                             pontos,
                             style: const TextStyle(
-                              color: Color(0xFF7E22CE), // purple-700
+                              color: Color(0xFF7E22CE),
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
                             ),
@@ -182,7 +206,7 @@ class _QuizziaHomeScreenState extends State<QuizziaHomeScreen>
                       const Text(
                         'Pontos Totais',
                         style: TextStyle(
-                          color: Color(0xFFA855F7), // purple-400
+                          color: Color(0xFFA855F7),
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
@@ -196,7 +220,7 @@ class _QuizziaHomeScreenState extends State<QuizziaHomeScreen>
             const Text(
               'Pronto para mais desafios?',
               style: TextStyle(
-                color: Color(0xFFFEF9C3), // yellow-100
+                color: Color(0xFFFEF9C3),
                 fontSize: 14,
                 height: 1.5,
               ),
@@ -207,12 +231,11 @@ class _QuizziaHomeScreenState extends State<QuizziaHomeScreen>
     );
   }
 
-  // 🆕 NOVO WIDGET: Botão Gerar Novo Quizz
   Widget _buildGenerateQuizButton() {
     return ScaleTransition(
-      scale: const AlwaysStoppedAnimation(1.0), // Mantém a animação de entrada original se você quiser adicioná-la aqui
+      scale: const AlwaysStoppedAnimation(1.0),
       child: GestureDetector(
-        onTap: widget.onGenerateNewQuiz, // ⬅️ Ação para ir para a HomePage
+        onTap: widget.onGenerateNewQuiz,
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.all(24),
@@ -221,13 +244,13 @@ class _QuizziaHomeScreenState extends State<QuizziaHomeScreen>
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Color(0xFF22C55E), // green-500
-                Color(0xFF16A34A), // green-600
-                Color(0xFF14532D), // green-900
+                Color(0xFF22C55E),
+                Color(0xFF16A34A),
+                Color(0xFF14532D),
               ],
             ),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFD9F99D), width: 3), // lime-200
+            border: Border.all(color: const Color(0xFFD9F99D), width: 3),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.3),
@@ -246,7 +269,7 @@ class _QuizziaHomeScreenState extends State<QuizziaHomeScreen>
                   Text(
                     'Criar é o melhor jeito de aprender!',
                     style: TextStyle(
-                      color: Color(0xFFD9F99D), // lime-200
+                      color: Color(0xFFD9F99D),
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
@@ -264,24 +287,26 @@ class _QuizziaHomeScreenState extends State<QuizziaHomeScreen>
                 ),
               ),
               const SizedBox(height: 16),
+              // O Container agora é permitido aqui
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Row(
+                child: const Row( // <-- Pode manter o 'const' no Row
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
                       'Começar a Criação',
                       style: TextStyle(
-                        color: Color(0xFF14532D), // green-900
+                        color: Color(0xFF14532D),
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     SizedBox(width: 8),
-                    Icon(Icons.arrow_forward_ios, color: Color(0xFF14532D), size: 16),
+                    Icon(Icons.arrow_forward_ios,
+                        color: Color(0xFF14532D), size: 16),
                   ],
                 ),
               ),
@@ -292,7 +317,101 @@ class _QuizziaHomeScreenState extends State<QuizziaHomeScreen>
     );
   }
 
-  // Footer motivacional
+  Widget _buildActionShortcuts() {
+    return Row(
+      children: [
+        _buildShortcutCard(
+          title: 'Meu Histórico',
+          icon: Icons.history_edu_rounded,
+          color: const Color(0xFFFACC15), // yellow-400
+          onTap: widget.onNavigateToHistorico,
+          gradientColors: const [Color(0xFFFDE68A), Color(0xFFD97706)], // light yellow to dark yellow
+          iconColor: const Color(0xFF854D0E), // brown
+        ),
+        const SizedBox(width: 16),
+        _buildShortcutCard(
+          title: 'Meus Grupos',
+          icon: Icons.groups_rounded,
+          color: const Color(0xFFC084FC), // purple-400
+          onTap: widget.onNavigateToGrupos,
+          gradientColors: const [Color(0xFFC4B5FD), Color(0xFF9333EA)], // light purple to purple
+          iconColor: const Color(0xFF4C1D95), // deep purple
+        ),
+      ],
+    );
+  }
+
+  Widget _buildShortcutCard({
+    required String title,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+    required List<Color> gradientColors,
+    required Color iconColor,
+  }) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: gradientColors,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withOpacity(0.5), width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.8),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: iconColor, size: 24),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                title,
+                style: TextStyle(
+                  color: iconColor,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Row(
+                children: [
+                  Text(
+                    'Acessar',
+                    style: TextStyle(
+                      color: Colors.black54,
+                      fontSize: 12,
+                    ),
+                  ),
+                  SizedBox(width: 4),
+                  Icon(Icons.arrow_right_alt_rounded,
+                      color: Colors.black54, size: 16),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildFooter() {
     return Center(
       child: Container(
@@ -321,8 +440,12 @@ class _QuizziaHomeScreenState extends State<QuizziaHomeScreen>
 
   String _obterSaudacao() {
     final hora = DateTime.now().hour;
-    if (hora < 12) return 'Bom dia';
-    if (hora < 18) return 'Boa tarde';
-    return 'Boa noite';
+    if (hora >= 5 && hora < 12) {
+      return 'Bom dia';
+    } else if (hora >= 12 && hora < 18) {
+      return 'Boa tarde';
+    } else {
+      return 'Boa noite';
+    }
   }
 }
