@@ -170,6 +170,8 @@ namespace YourNamespace.Controllers
         [HttpPost("avaliar")]
         public async Task<IActionResult> AvaliarQuizz([FromBody] AvaliacaoQuizzRequest dto)
         {
+
+            Console.WriteLine("➡️ Entrou no método SalvarTentativa!");
             if (dto == null || dto.Respostas == null || !dto.Respostas.Any())
                 return BadRequest("Nenhuma resposta enviada.");
 
@@ -181,7 +183,6 @@ namespace YourNamespace.Controllers
                 .Where(p => p.QuizzId == dto.QuizzId)
                 .ToDictionaryAsync(p => p.Id);
 
-            // 1️⃣ Calcular o total de pontos possíveis do quiz
             int pontosTotalQuizz = perguntas.Values.Sum(p => p.Dificuldade switch
             {
                 "Fácil" => 15,
@@ -194,27 +195,42 @@ namespace YourNamespace.Controllers
             int totalPerguntas = perguntas.Count;
             int acertosTotais = 0;
 
-            // Para calcular acertos por tema
             var temasResumo = new Dictionary<string, (int respondidas, int acertos)>();
+
+            var tentativa = new QuizTentativa
+            {
+                UserId = dto.UserId,
+                QuizzId = dto.QuizzId,
+                Acertos = 0,
+                TotalPerguntas = totalPerguntas,
+                PontosObtidos = 0,
+                PontosTotal = pontosTotalQuizz,
+                Percentual = 0,
+                DataResposta = DateTime.Now
+            };
+
+            await _context.QuizTentativas.AddAsync(tentativa);
+            await _context.SaveChangesAsync();
+
+            var respostasSalvar = new List<RespostaQuizz>();
 
             foreach (var resposta in dto.Respostas)
             {
                 if (perguntas.TryGetValue(resposta.PerguntaId, out var pergunta))
                 {
-                    // Inicializa o tema no dicionário
                     if (!temasResumo.ContainsKey(pergunta.Tema))
                         temasResumo[pergunta.Tema] = (0, 0);
 
-                    // Atualiza quantidade de perguntas respondidas no tema
                     var (respondidas, acertos) = temasResumo[pergunta.Tema];
                     respondidas++;
 
-                    // Verifica acerto
                     bool correto = pergunta.RespostaCorreta == resposta.AlternativaEscolhida;
+
                     if (correto)
                     {
                         acertos++;
                         acertosTotais++;
+
                         pontosObtidos += pergunta.Dificuldade switch
                         {
                             "Fácil" => 15,
@@ -225,31 +241,44 @@ namespace YourNamespace.Controllers
                     }
 
                     temasResumo[pergunta.Tema] = (respondidas, acertos);
+
+                    respostasSalvar.Add(new RespostaQuizz
+                    {
+                        QuizTentativaId = tentativa.Id,
+                        PerguntaId = resposta.PerguntaId,
+                        AlternativaEscolhida = resposta.AlternativaEscolhida,
+                        Correta = correto
+                    });
                 }
             }
 
-            // Atualiza pontos do usuário no banco
+            await _context.RespostasQuizz.AddRangeAsync(respostasSalvar);
+
+            tentativa.Acertos = acertosTotais;
+            tentativa.PontosObtidos = pontosObtidos;
+            tentativa.Percentual = totalPerguntas > 0
+                ? (acertosTotais * 100.0 / totalPerguntas)
+                : 0;
+
+            await _context.SaveChangesAsync();
+
             user.Pontos += pontosObtidos;
             await _context.SaveChangesAsync();
 
-            // Calcula porcentagem de acertos
-            double percentualAcertos = totalPerguntas > 0 ? (acertosTotais * 100.0 / totalPerguntas) : 0;
-
-            // Define mensagem motivadora
-            string mensagemMotivadora = percentualAcertos <= 60
+            string mensagemMotivadora = tentativa.Percentual <= 60
                 ? "Você está indo bem, mas pode melhorar. Vamos!"
-                : percentualAcertos <= 85
+                : tentativa.Percentual <= 85
                     ? "Você tá indo muito bem, continue assim!"
                     : "Temos um expert na área, parabéns!";
 
-            // Retorna o JSON final com todos os campos
             return Ok(new
             {
                 pontosTotalQuizz = pontosTotalQuizz,
                 pontosRecebidosQuizz = pontosObtidos,
                 pontosTotaisUsuario = user.Pontos,
-                percentualAcertos = percentualAcertos,
+                percentualAcertos = tentativa.Percentual,
                 mensagemMotivadora = mensagemMotivadora,
+                tentativaId = tentativa.Id,
                 resumoPorTema = temasResumo.Select(kvp => new
                 {
                     tema = kvp.Key,
@@ -298,6 +327,29 @@ namespace YourNamespace.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(new { grupo.Id, grupo.Nome });
+        }
+
+        [HttpPost("sair")]
+        public async Task<IActionResult> SairGrupo([FromBody] SairGrupoDTO dto)
+        {
+            var user = await _context.Users.FindAsync(dto.UsuarioId);
+            if (user == null)
+                return NotFound("Usuário não encontrado.");
+
+            var grupo = await _context.Grupos.FindAsync(dto.GrupoId);
+            if (grupo == null)
+                return NotFound("Grupo não encontrado.");
+
+            var usuarioGrupo = await _context.UsuariosGrupos
+                .FirstOrDefaultAsync(ug => ug.UsuarioId == dto.UsuarioId && ug.GrupoId == dto.GrupoId);
+
+            if (usuarioGrupo == null)
+                return BadRequest("Usuário não faz parte deste grupo.");
+
+            _context.UsuariosGrupos.Remove(usuarioGrupo);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { mensagem = "Usuário removido do grupo com sucesso." });
         }
 
         [HttpGet("grupos/{id}/membros")]
@@ -357,7 +409,6 @@ namespace YourNamespace.Controllers
             int criadorId = int.Parse(userIdClaim);
 
 
-            // 3️⃣ Cria o quizz associado ao grupo
             var quizz = new Quizz
             {
                 Titulo = titulo,
@@ -375,7 +426,6 @@ namespace YourNamespace.Controllers
             _context.Quizzes.Add(quizz);
             await _context.SaveChangesAsync();
 
-            // 4️⃣ Gera perguntas via IA
             var perguntasGeradas = await _openAIService.GerarQuizzDTOAsync(
                 request.NivelEscolar,
                 request.Objetivo,
@@ -388,7 +438,6 @@ namespace YourNamespace.Controllers
             if (perguntasGeradas == null || !perguntasGeradas.Any())
                 return BadRequest("Não foi possível gerar perguntas para o quiz do grupo.");
 
-            // 5️⃣ Adiciona perguntas ao banco
             foreach (var p in perguntasGeradas)
             {
                 _context.Perguntas.Add(new Pergunta
@@ -409,7 +458,6 @@ namespace YourNamespace.Controllers
 
             await _context.SaveChangesAsync();
 
-            // 6️⃣ Retorna o quiz completo com perguntas
             return Ok(new
             {
                 Mensagem = $"Quiz gerado com sucesso para o grupo {grupo.Nome}.",
@@ -431,66 +479,16 @@ namespace YourNamespace.Controllers
                 })
             });
         }
-        [HttpGet("grupos/{grupoId}/quizzes")]
-        public async Task<IActionResult> ObterQuizzesDoGrupo(int grupoId, bool incluirPerguntas = false)
-        {
-            // 1️⃣ Verifica se o grupo existe
-            var grupo = await _context.Grupos
-                .Include(g => g.Quizzes)
-                .ThenInclude(q => q.Perguntas)
-                .FirstOrDefaultAsync(g => g.Id == grupoId);
 
-            if (grupo == null)
-                return NotFound("Grupo não encontrado.");
-
-            if (grupo.Quizzes == null || !grupo.Quizzes.Any())
-                return Ok(new { Mensagem = "Nenhum quiz encontrado para este grupo." });
-
-            // 2️⃣ Monta a resposta
-            var resultado = grupo.Quizzes.Select(q => new
-            {
-                q.Id,
-                q.Titulo,
-                q.NivelEscolar,
-                q.NumeroPerguntas,
-                q.Temas,
-                q.Objetivo,
-                q.Referencia,
-                q.DataInicio,
-                q.DataFim,
-                q.GrupoId,
-                Perguntas = incluirPerguntas
-                    ? q.Perguntas.Select(p => new
-                    {
-                        p.Id,
-                        p.PerguntaTexto,
-                        p.Tema,
-                        p.Dificuldade,
-                        p.RespostaCorreta
-                    })
-                    : null
-            });
-
-            // 3️⃣ Retorna o resultado
-            return Ok(new
-            {
-                GrupoId = grupo.Id,
-                GrupoNome = grupo.Nome,
-                TotalQuizzes = grupo.Quizzes.Count,
-                Quizzes = resultado
-            });
-        }
 
 
         [HttpGet("usuario/{usuarioId}/grupos")]
         public async Task<IActionResult> ObterGruposDoUsuario(int usuarioId)
         {
-            // 1️⃣ Verifica se o usuário existe
             var user = await _context.Users.FindAsync(usuarioId);
             if (user == null)
                 return NotFound("Usuário não encontrado.");
 
-            // 2️⃣ Busca todos os grupos que o usuário participa
             var grupos = await _context.UsuariosGrupos
                 .Where(ug => ug.UsuarioId == usuarioId)
                 .Include(ug => ug.Grupo) // Inclui dados do grupo
@@ -503,7 +501,6 @@ namespace YourNamespace.Controllers
                     Cor = ug.Grupo.Color,
                     Icon = ug.Grupo.Icon,
 
-                    // 🔥 Novos campos:
                     NumeroMembros = _context.UsuariosGrupos
                         .Count(x => x.GrupoId == ug.Grupo.Id),
 
@@ -512,7 +509,6 @@ namespace YourNamespace.Controllers
                 })
                 .ToListAsync();
 
-            // 3️⃣ Retorna a lista
             return Ok(new
             {
                 UsuarioId = usuarioId,
@@ -525,8 +521,17 @@ namespace YourNamespace.Controllers
 
 
         [HttpGet("grupos/{grupoId}/detalhes")]
+        [Authorize]
         public async Task<IActionResult> ObterDetalhesDoGrupo(int grupoId)
         {
+            var userIdClaim = User.FindFirst("id")?.Value
+                ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userIdClaim))
+                return Unauthorized("Usuário não autenticado.");
+
+            int userId = int.Parse(userIdClaim);
+
             var grupo = await _context.Grupos
                 .Include(g => g.Criador)
                 .Include(g => g.Membros)
@@ -537,13 +542,16 @@ namespace YourNamespace.Controllers
             if (grupo == null)
                 return NotFound("Grupo não encontrado.");
 
-            // Atualiza contadores automaticamente
             grupo.NumeroMembros = grupo.Membros.Count;
             grupo.NumeroQuizzes = grupo.Quizzes.Count;
 
+            var tentativasUsuario = await _context.QuizTentativas
+                .Where(t => t.UserId == userId)
+                .Select(t => t.QuizzId)
+                .ToListAsync();
+
             var resultado = new
             {
-                // 📌 Dados do grupo
                 grupo.Id,
                 grupo.Nome,
                 grupo.Descricao,
@@ -554,7 +562,6 @@ namespace YourNamespace.Controllers
                 grupo.NumeroMembros,
                 grupo.NumeroQuizzes,
 
-                // 📌 Criador
                 Criador = new
                 {
                     grupo.Criador.Id,
@@ -562,7 +569,6 @@ namespace YourNamespace.Controllers
                     grupo.Criador.Email
                 },
 
-                // 📌 Lista de quizzes
                 Quizzes = grupo.Quizzes.Select(q => new
                 {
                     q.Id,
@@ -573,10 +579,12 @@ namespace YourNamespace.Controllers
                     q.Objetivo,
                     q.Referencia,
                     q.DataInicio,
-                    q.DataFim
+                    q.DataFim,
+                    Respondido = tentativasUsuario.Contains(q.Id),
+                    Finalizado = q.Finalizado,
+                    CriadorId = q.CriadorId
                 }),
 
-                // 📌 Lista de membros
                 Membros = grupo.Membros.Select(m => new
                 {
                     m.User.Id,
@@ -585,19 +593,21 @@ namespace YourNamespace.Controllers
                 })
             };
 
+
             return Ok(resultado);
         }
+
 
         [HttpGet("usuario/{usuarioId}")]
         public async Task<IActionResult> ObterDadosUsuario(int usuarioId)
         {
-           
+
             var user = await _context.Users.FindAsync(usuarioId);
 
             if (user == null)
                 return NotFound($"Usuário com ID {usuarioId} não encontrado.");
 
-           
+
             int quizzesGerados = await _context.Quizzes
                 .CountAsync(q => q.CriadorId == usuarioId);
 
@@ -613,6 +623,162 @@ namespace YourNamespace.Controllers
 
             return Ok(dadosUsuario);
         }
+
+        [HttpPut("quizzes/{quizId}/finalizar")]
+        [Authorize]
+        public async Task<IActionResult> FinalizarQuiz(int quizId)
+        {
+            var userIdClaim = User.FindFirst("id")?.Value
+                ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userIdClaim))
+                return Unauthorized("Usuário não autenticado.");
+
+            int userId = int.Parse(userIdClaim);
+
+            var quiz = await _context.Quizzes
+                .Include(q => q.Criador)
+                .FirstOrDefaultAsync(q => q.Id == quizId);
+
+            if (quiz == null)
+                return NotFound("Quiz não encontrado.");
+
+            if (quiz.Criador.Id != userId)
+                return Forbid("Apenas o criador do quiz pode finalizá-lo.");
+
+            quiz.Finalizado = true;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Quiz finalizado com sucesso.", quizId = quiz.Id });
+        }
+
+        [HttpGet("grupos/{grupoId}/ranking")]
+
+        public async Task<IActionResult> ObterRankingPorGrupo(int grupoId)
+        {
+            var grupo = await _context.Grupos.FindAsync(grupoId);
+            if (grupo == null)
+                return NotFound("Grupo não encontrado.");
+
+            var rankingQuery = await _context.QuizTentativas
+                .Where(qt => _context.Quizzes.Any(q => q.Id == qt.QuizzId && q.GrupoId == grupoId))
+                .GroupBy(qt => qt.UserId)
+                .Select(g => new
+                {
+                    UsuarioId = g.Key,
+                    PontosTotais = g.Sum(qt => qt.PontosObtidos)
+                })
+                .OrderByDescending(x => x.PontosTotais)
+                .ToListAsync();
+
+            var rankingComNome = rankingQuery.Select((r, index) => new
+            {
+                Posicao = index + 1,
+                r.UsuarioId,
+                Nome = _context.Users.Where(u => u.Id == r.UsuarioId).Select(u => u.Nome).FirstOrDefault() ?? "Desconhecido",
+                r.PontosTotais
+            }).ToList();
+
+            return Ok(new
+            {
+                GrupoId = grupo.Id,
+                GrupoNome = grupo.Nome,
+                Ranking = rankingComNome
+            });
+        }
+
+        [HttpGet("quizzes/{quizzId}/ranking")]
+        public async Task<IActionResult> ObterRankingPorQuizz(int quizzId)
+        {
+            var quiz = await _context.Quizzes.FindAsync(quizzId);
+            if (quiz == null)
+                return NotFound("Quiz não encontrado.");
+
+            var rankingQuery = await _context.QuizTentativas
+                .Where(qt => qt.QuizzId == quizzId)
+                .GroupBy(qt => qt.UserId)
+                .Select(g => new
+                {
+                    UsuarioId = g.Key,
+                    PontosTotais = g.Sum(qt => qt.PontosObtidos)
+                })
+                .OrderByDescending(x => x.PontosTotais)
+                .ToListAsync();
+
+            var rankingComNome = rankingQuery.Select((r, index) => new
+            {
+                Posicao = index + 1,
+                r.UsuarioId,
+                Nome = _context.Users
+                    .Where(u => u.Id == r.UsuarioId)
+                    .Select(u => u.Nome)
+                    .FirstOrDefault() ?? "Desconhecido",
+                r.PontosTotais
+            }).ToList();
+
+            return Ok(new
+            {
+                QuizzId = quiz.Id,
+                QuizzTitulo = quiz.Titulo,
+                Ranking = rankingComNome
+            });
+        }
+
+        [HttpGet("usuario/{usuarioId}/historico")]
+        
+        public async Task<IActionResult> ObterHistoricoUsuario(int usuarioId)
+        {
+            var user = await _context.Users.FindAsync(usuarioId);
+            if (user == null)
+                return NotFound("Usuário não encontrado.");
+
+            var tentativas = await _context.QuizTentativas
+                .Where(t => t.UserId == usuarioId)
+                .Include(t => t.Respostas) 
+                .ToListAsync();
+
+            var historico = new List<object>();
+
+            foreach (var tentativa in tentativas)
+            {
+                var quiz = await _context.Quizzes.FindAsync(tentativa.QuizzId);
+                if (quiz == null) continue; 
+
+                historico.Add(new
+                {
+                    TentativaId = tentativa.Id,
+                    QuizzId = quiz.Id,
+                    QuizzTitulo = quiz.Titulo,
+                    DataResposta = tentativa.DataResposta,
+                    Acertos = tentativa.Acertos,
+                    TotalPerguntas = tentativa.TotalPerguntas,
+                    PontosObtidos = tentativa.PontosObtidos,
+                    PontosTotal = tentativa.PontosTotal,
+                    Percentual = tentativa.Percentual,
+                    Respostas = tentativa.Respostas.Select(r => new
+                    {
+                        r.PerguntaId,
+                        PerguntaTexto = _context.Perguntas
+                            .Where(p => p.Id == r.PerguntaId)
+                            .Select(p => p.PerguntaTexto)
+                            .FirstOrDefault() ?? "Pergunta removida",
+                        r.AlternativaEscolhida,
+                        r.Correta
+                    })
+                });
+            }
+
+            return Ok(new
+            {
+                UsuarioId = user.Id,
+                NomeUsuario = user.Nome,
+                Historico = historico
+            });
+        }
+
     }
+
+
 }
 //teste

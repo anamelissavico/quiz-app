@@ -13,15 +13,15 @@ using quizzAPI.Data;
 namespace quizzAPI.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20251201003456_InitialCreate")]
-    partial class InitialCreate
+    [Migration("20251208000615_AddQuizTentativa")]
+    partial class AddQuizTentativa
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "9.0.8")
+                .HasAnnotation("ProductVersion", "8.0.5")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -131,6 +131,49 @@ namespace quizzAPI.Migrations
                     b.ToTable("Perguntas", (string)null);
                 });
 
+            modelBuilder.Entity("quizzAPI.Models.QuizTentativa", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Acertos")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("DataResposta")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<double>("Percentual")
+                        .HasColumnType("double precision");
+
+                    b.Property<int>("PontosObtidos")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PontosTotal")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("QuizzId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TotalPerguntas")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("QuizzId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("QuizTentativas", (string)null);
+                });
+
             modelBuilder.Entity("quizzAPI.Models.Quizz", b =>
                 {
                     b.Property<int>("Id")
@@ -148,7 +191,7 @@ namespace quizzAPI.Migrations
                     b.Property<DateTime?>("DataInicio")
                         .HasColumnType("timestamp without time zone");
 
-                    b.PrimitiveCollection<List<string>>("Dificuldade")
+                    b.Property<List<string>>("Dificuldade")
                         .HasColumnType("text[]");
 
                     b.Property<int?>("GrupoId")
@@ -168,7 +211,7 @@ namespace quizzAPI.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.PrimitiveCollection<List<string>>("Temas")
+                    b.Property<List<string>>("Temas")
                         .IsRequired()
                         .HasColumnType("text[]");
 
@@ -182,6 +225,37 @@ namespace quizzAPI.Migrations
                     b.HasIndex("GrupoId");
 
                     b.ToTable("Quizz", (string)null);
+                });
+
+            modelBuilder.Entity("quizzAPI.Models.RespostaQuizz", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AlternativaEscolhida")
+                        .IsRequired()
+                        .HasMaxLength(1)
+                        .HasColumnType("character varying(1)");
+
+                    b.Property<bool>("Correta")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("PerguntaId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("QuizTentativaId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PerguntaId");
+
+                    b.HasIndex("QuizTentativaId");
+
+                    b.ToTable("RespostasQuizz", (string)null);
                 });
 
             modelBuilder.Entity("quizzAPI.Models.User", b =>
@@ -261,6 +335,21 @@ namespace quizzAPI.Migrations
                     b.Navigation("Quizz");
                 });
 
+            modelBuilder.Entity("quizzAPI.Models.QuizTentativa", b =>
+                {
+                    b.HasOne("quizzAPI.Models.Quizz", null)
+                        .WithMany()
+                        .HasForeignKey("QuizzId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("quizzAPI.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("quizzAPI.Models.Quizz", b =>
                 {
                     b.HasOne("quizzAPI.Models.User", "Criador")
@@ -274,6 +363,25 @@ namespace quizzAPI.Migrations
                     b.Navigation("Criador");
 
                     b.Navigation("Grupo");
+                });
+
+            modelBuilder.Entity("quizzAPI.Models.RespostaQuizz", b =>
+                {
+                    b.HasOne("quizzAPI.Models.Pergunta", "Pergunta")
+                        .WithMany()
+                        .HasForeignKey("PerguntaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("quizzAPI.Models.QuizTentativa", "QuizTentativa")
+                        .WithMany("Respostas")
+                        .HasForeignKey("QuizTentativaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Pergunta");
+
+                    b.Navigation("QuizTentativa");
                 });
 
             modelBuilder.Entity("quizzAPI.Models.UsuarioGrupo", b =>
@@ -300,6 +408,11 @@ namespace quizzAPI.Migrations
                     b.Navigation("Membros");
 
                     b.Navigation("Quizzes");
+                });
+
+            modelBuilder.Entity("quizzAPI.Models.QuizTentativa", b =>
+                {
+                    b.Navigation("Respostas");
                 });
 
             modelBuilder.Entity("quizzAPI.Models.Quizz", b =>

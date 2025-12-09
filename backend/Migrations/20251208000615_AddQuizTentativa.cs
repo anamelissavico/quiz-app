@@ -8,7 +8,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace quizzAPI.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialCreate : Migration
+    public partial class AddQuizTentativa : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -145,6 +145,66 @@ namespace quizzAPI.Migrations
                         onDelete: ReferentialAction.Cascade);
                 });
 
+            migrationBuilder.CreateTable(
+                name: "QuizTentativas",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    UserId = table.Column<int>(type: "integer", nullable: false),
+                    QuizzId = table.Column<int>(type: "integer", nullable: false),
+                    Acertos = table.Column<int>(type: "integer", nullable: false),
+                    TotalPerguntas = table.Column<int>(type: "integer", nullable: false),
+                    PontosObtidos = table.Column<int>(type: "integer", nullable: false),
+                    PontosTotal = table.Column<int>(type: "integer", nullable: false),
+                    Percentual = table.Column<double>(type: "double precision", nullable: false),
+                    DataResposta = table.Column<DateTime>(type: "timestamp", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP")
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_QuizTentativas", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_QuizTentativas_Quizz_QuizzId",
+                        column: x => x.QuizzId,
+                        principalTable: "Quizz",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_QuizTentativas_Users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "RespostasQuizz",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    QuizTentativaId = table.Column<int>(type: "integer", nullable: false),
+                    PerguntaId = table.Column<int>(type: "integer", nullable: false),
+                    AlternativaEscolhida = table.Column<string>(type: "character varying(1)", maxLength: 1, nullable: false),
+                    Correta = table.Column<bool>(type: "boolean", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_RespostasQuizz", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_RespostasQuizz_Perguntas_PerguntaId",
+                        column: x => x.PerguntaId,
+                        principalTable: "Perguntas",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_RespostasQuizz_QuizTentativas_QuizTentativaId",
+                        column: x => x.QuizTentativaId,
+                        principalTable: "QuizTentativas",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
             migrationBuilder.CreateIndex(
                 name: "IX_Grupos_CriadorId",
                 table: "Grupos",
@@ -156,6 +216,16 @@ namespace quizzAPI.Migrations
                 column: "QuizzId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_QuizTentativas_QuizzId",
+                table: "QuizTentativas",
+                column: "QuizzId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_QuizTentativas_UserId",
+                table: "QuizTentativas",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Quizz_CriadorId",
                 table: "Quizz",
                 column: "CriadorId");
@@ -164,6 +234,16 @@ namespace quizzAPI.Migrations
                 name: "IX_Quizz_GrupoId",
                 table: "Quizz",
                 column: "GrupoId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RespostasQuizz_PerguntaId",
+                table: "RespostasQuizz",
+                column: "PerguntaId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RespostasQuizz_QuizTentativaId",
+                table: "RespostasQuizz",
+                column: "QuizTentativaId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Users_Email",
@@ -181,10 +261,16 @@ namespace quizzAPI.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "Perguntas");
+                name: "RespostasQuizz");
 
             migrationBuilder.DropTable(
                 name: "UsuariosGrupos");
+
+            migrationBuilder.DropTable(
+                name: "Perguntas");
+
+            migrationBuilder.DropTable(
+                name: "QuizTentativas");
 
             migrationBuilder.DropTable(
                 name: "Quizz");

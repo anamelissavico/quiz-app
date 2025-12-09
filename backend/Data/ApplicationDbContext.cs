@@ -12,6 +12,8 @@ namespace quizzAPI.Data
         public DbSet<Pergunta> Perguntas { get; set; }
         public DbSet<Grupo> Grupos { get; set; }
         public DbSet<UsuarioGrupo> UsuariosGrupos { get; set; }
+        public DbSet<QuizTentativa> QuizTentativas { get; set; }
+        public DbSet<RespostaQuizz> RespostasQuizz { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -89,6 +91,64 @@ namespace quizzAPI.Data
                       .IsRequired(false);
             });
 
+            modelBuilder.Entity<QuizTentativa>(entity =>
+            {
+                entity.ToTable("QuizTentativas");
+
+                entity.HasKey(qt => qt.Id);
+
+                entity.Property(qt => qt.Acertos).IsRequired();
+                entity.Property(qt => qt.TotalPerguntas).IsRequired();
+                entity.Property(qt => qt.PontosObtidos).IsRequired();
+                entity.Property(qt => qt.PontosTotal).IsRequired();
+                entity.Property(qt => qt.Percentual).IsRequired();
+
+                entity.Property(qt => qt.DataResposta)
+                      .HasColumnType("timestamp")
+                      .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+               
+                entity.HasOne<User>()
+                      .WithMany()
+                      .HasForeignKey(qt => qt.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+              
+                entity.HasOne<Quizz>()
+                      .WithMany()
+                      .HasForeignKey(qt => qt.QuizzId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasMany(qt => qt.Respostas)
+                      .WithOne(r => r.QuizTentativa)
+                      .HasForeignKey(r => r.QuizTentativaId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<RespostaQuizz>(entity =>
+            {
+                entity.ToTable("RespostasQuizz");
+
+                entity.HasKey(r => r.Id);
+
+                entity.Property(r => r.AlternativaEscolhida)
+                      .HasMaxLength(1)
+                      .IsRequired();
+
+                entity.Property(r => r.Correta).IsRequired();
+
+                entity.HasOne(r => r.QuizTentativa)
+                      .WithMany(qt => qt.Respostas)
+                      .HasForeignKey(r => r.QuizTentativaId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(r => r.Pergunta)
+                      .WithMany()
+                      .HasForeignKey(r => r.PerguntaId)
+                      .OnDelete(DeleteBehavior.Restrict);
+            });
+
+
             // UsuarioGrupo
             modelBuilder.Entity<UsuarioGrupo>()
                 .HasKey(ug => new { ug.UsuarioId, ug.GrupoId });
@@ -104,6 +164,11 @@ namespace quizzAPI.Data
                 .HasForeignKey(ug => ug.GrupoId);
 
             base.OnModelCreating(modelBuilder);
+        
         }
+
+
     }
+
+
 }

@@ -17,6 +17,9 @@
         public string Justificativa { get; set; } = string.Empty;
 
         public String Dificuldade { get; set; } = string.Empty;
-        public int QuizzId { get; set; } // Novo campo
+        public int QuizzId { get; set; }
+
+        public bool Respondido { get; set; }
+        public bool Finalizado { get; set; }
     }
 }

@@ -37,5 +37,8 @@ namespace quizzAPI.Models
 
         public int? CriadorId { get; set; }
         public User? Criador { get; set; }
+
+        public bool Respondido { get; set; } = false;
+        public bool Finalizado { get; set; } = false;
     }
 }
